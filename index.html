@@ -1,0 +1,152 @@
+import React, { useEffect, useState, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
+
+const GRID_WIDTH = 10;
+const PLAYER_START_POS = 5;
+const INITIAL_SPEED = 1500;
+
+export default function FallingWallsGame() {
+  const [playerPos, setPlayerPos] = useState(PLAYER_START_POS);
+  const [walls, setWalls] = useState([]);
+  const [score, setScore] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [speed, setSpeed] = useState(INITIAL_SPEED);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!started || gameOver) return;
+      if (e.key === 'ArrowLeft' || e.key === 'q') {
+        setPlayerPos((pos) => Math.max(0, pos - 1));
+      } else if (e.key === 'ArrowRight' || e.key === 'd') {
+        setPlayerPos((pos) => Math.min(GRID_WIDTH - 1, pos + 1));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameOver, started]);
+
+  useEffect(() => {
+    if (!started || gameOver) return;
+
+    const wallGen = setInterval(() => {
+      const hole = Math.floor(Math.random() * GRID_WIDTH);
+      setWalls((prev) => [...prev, { id: Date.now(), hole, createdAt: Date.now() }]);
+      setSpeed((s) => Math.max(400, s - 20));
+    }, speed);
+
+    return () => clearInterval(wallGen);
+  }, [speed, gameOver, started]);
+
+  useEffect(() => {
+    if (!started || gameOver) return;
+
+    timerRef.current = setInterval(() => {
+      setScore((s) => s + 1);
+    }, 1000);
+
+    return () => clearInterval(timerRef.current);
+  }, [started, gameOver]);
+
+  useEffect(() => {
+    if (!started || gameOver) return;
+
+    const moveWalls = setInterval(() => {
+      setWalls((prev) => {
+        const now = Date.now();
+        const updated = prev.map((w) => ({ ...w }));
+        const firstWall = updated[0];
+
+        if (firstWall && now - firstWall.createdAt > 1400) {
+          if (firstWall.hole !== playerPos) {
+            setGameOver(true);
+            clearInterval(timerRef.current);
+          }
+          return updated.slice(1);
+        }
+
+        return updated;
+      });
+    }, 100);
+
+    return () => clearInterval(moveWalls);
+  }, [playerPos, started, gameOver]);
+
+  if (!started) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white font-mono p-4 animate-fade-in">
+        <h1 className="text-4xl font-bold text-pink-500 mb-6">⚡ KRAHSCORE: FALLING WALLS ⚡</h1>
+        <p className="text-center max-w-md text-lg mb-4">
+          Tu es un carré rose. Des murs tombent du haut de l'écran. Ils ont un trou aléatoire. 
+          Utilise <strong>← →</strong> ou <strong>Q D</strong> pour te déplacer. Survis le plus longtemps possible.
+        </p>
+        <p className="text-pink-400 mb-8">1 point = 1 seconde de survie ⏱️</p>
+        <button
+          onClick={() => setStarted(true)}
+          className="bg-pink-600 hover:bg-pink-500 transition px-6 py-3 rounded-xl text-white font-bold shadow-lg"
+        >
+          Lancer la partie
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white font-mono p-4">
+      <h1 className="text-3xl font-bold mb-4 text-pink-500">⚡ KRAHSCORE: FALLING WALLS ⚡</h1>
+      <div className="relative w-full max-w-lg h-[400px] bg-neutral-900 border border-neutral-700 overflow-hidden rounded-xl shadow-2xl">
+        <div className="absolute bottom-0 left-0 w-full h-10 grid grid-cols-10">
+          {[...Array(GRID_WIDTH)].map((_, i) => (
+            <div
+              key={i}
+              className={cn(
+                'transition-all',
+                i === playerPos ? 'bg-pink-500 animate-pulse' : 'bg-transparent'
+              )}
+            />
+          ))}
+        </div>
+        {walls.map((wall, index) => (
+          <motion.div
+            key={wall.id}
+            initial={{ top: -40 }}
+            animate={{ top: 360 }}
+            transition={{ duration: 1.5, ease: 'linear' }}
+            className="absolute left-0 w-full h-10 grid grid-cols-10"
+          >
+            {[...Array(GRID_WIDTH)].map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  i === wall.hole ? 'bg-transparent' : 'bg-pink-700 animate-glow',
+                  'rounded-xl'
+                )}
+              />
+            ))}
+          </motion.div>
+        ))}
+      </div>
+      <div className="mt-4 text-lg">Score : <span className="font-bold text-pink-400">{score}</span></div>
+      {gameOver && <div className="mt-4 text-red-500 text-xl">💀 GAME OVER 💀</div>}
+    </div>
+  );
+}
+
+// CSS tailwind anim custom classes (à inclure dans ton fichier CSS global si besoin)
+// .animate-glow {
+//   animation: glow 0.5s ease-in-out infinite alternate;
+// }
+// @keyframes glow {
+//   from { filter: drop-shadow(0 0 2px #ec4899); }
+//   to { filter: drop-shadow(0 0 8px #ec4899); }
+// }
+
+// .animate-fade-in {
+//   animation: fadeIn 1s ease-out;
+// }
+// @keyframes fadeIn {
+//   from { opacity: 0; transform: translateY(20px); }
+//   to { opacity: 1; transform: translateY(0); }
+// }
